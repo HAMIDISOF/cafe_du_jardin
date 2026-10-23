@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Capture d'idées</title>
+<meta name="theme-color" content="#1B3A5C">
+<!-- Manifeste : utile seulement si la page est servie en HTTPS (ou localhost). Sans lui, la page marche quand même. -->
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+/* Palette : fond #1B3A5C, texte clair. Gros boutons, contraste fort. */
+:root{--fond:#1B3A5C;--fond2:#244B77;--fond3:#12294A;--texte:#F4F8FC;--doux:#C5D6E8;--accent:#FFD866;--accent-t:#1B3A5C;--ok:#7FE0A3;--ko:#FF9B9B;--ligne:#4F7099}
+*{box-sizing:border-box}
+html{font-size:20px}
+body{margin:0;background:var(--fond);color:var(--texte);font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;line-height:1.5;min-height:100vh;display:flex;flex-direction:column}
+main{flex:1;width:100%;max-width:640px;margin:0 auto;padding:16px}
+h1{font-size:1.5rem;margin:.2em 0 .6em}
+h2{font-size:1.2rem;margin:1.2em 0 .5em}
+button,select,input,textarea{font:inherit;color:inherit}
+.gros{display:block;width:100%;min-height:72px;margin:12px 0;padding:14px 18px;font-size:1.25rem;font-weight:700;border-radius:16px;border:3px solid var(--accent);background:var(--accent);color:var(--accent-t);cursor:pointer}
+.gros.sec{background:transparent;color:var(--accent)}
+.gros.danger{background:transparent;border-color:var(--ko);color:var(--ko)}
+.petit{min-height:48px;padding:8px 16px;border-radius:12px;border:2px solid var(--ligne);background:var(--fond2);cursor:pointer;font-weight:600}
+.petit.danger{border-color:var(--ko);color:var(--ko)}
+button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible,audio:focus-visible{outline:4px solid var(--accent);outline-offset:2px}
+label{display:block;font-weight:700;margin:14px 0 6px}
+select,input[type=text],textarea{width:100%;padding:12px 14px;border-radius:12px;border:2px solid var(--ligne);background:var(--fond3)}
+textarea{min-height:11em;resize:vertical}
+.liste{list-style:none;padding:0;margin:0}
+.carte{background:var(--fond2);border:2px solid var(--ligne);border-radius:14px;padding:12px 14px;margin:10px 0}
+.carte .tete{display:flex;gap:10px;align-items:baseline;justify-content:space-between;flex-wrap:wrap}
+.carte .meta{color:var(--doux);font-size:.8rem;overflow-wrap:anywhere}
+.carte .extrait{margin:.3em 0;overflow-wrap:anywhere}
+.carte audio{width:100%;margin-top:6px}
+.vide{color:var(--doux)}
+#etat{min-height:1.6em;margin:.4em 0;font-weight:600;position:sticky;top:0;z-index:10;background:var(--fond)}
+#etat:not(:empty){padding:10px 14px;border:3px solid var(--ligne);border-radius:12px;background:var(--fond3)}
+#etat.ok:not(:empty){border-color:var(--ok)}#etat.ko:not(:empty){border-color:var(--ko)}
+#bandeau{background:var(--fond3);border:3px solid var(--accent);border-radius:12px;padding:10px 14px;margin:.6em 0;font-size:.85rem}
+#etat.ok{color:var(--ok)}#etat.ko{color:var(--ko)}
+.chrono{font-size:2.4rem;font-weight:800;text-align:center;margin:.4em 0;font-variant-numeric:tabular-nums}
+.pastille{display:inline-block;width:.8em;height:.8em;border-radius:50%;background:var(--ko);margin-right:.4em;animation:cligne 1s infinite}
+@keyframes cligne{50%{opacity:.25}}
+@media (prefers-reduced-motion:reduce){.pastille{animation:none}}
+footer{padding:12px 16px 20px;text-align:center;color:var(--doux);font-size:.8rem}
+[hidden]{display:none!important}
+@media (max-width:400px){html{font-size:18px}}
+</style>
+</head>
+<body>
+<main>
+<h1>Capture d'idées</h1>
+<p id="etat" role="status" aria-live="polite"></p>
+<div id="bandeau" hidden></div>
+
+<!-- ÉCRAN 1 : accueil -->
+<section id="ecran-accueil">
+  <button class="gros" id="b-ecrire" type="button">✍️ Écrire une idée</button>
+  <button class="gros" id="b-enregistrer" type="button">🎤 Enregistrer</button>
+  <h2>Dernières captures <span id="compte"></span></h2>
+  <ul class="liste" id="liste"></ul>
+  <p class="vide" id="liste-vide">Aucune capture pour l'instant.</p>
+  <button class="gros" id="b-partager" type="button" hidden>📤 Envoyer mes captures (WhatsApp, mail…)</button>
+  <button class="gros sec" id="b-exporter" type="button">⬇️ Exporter (fichier JSON)</button>
+  <p class="vide">Les captures restent sur ce téléphone. Exporte régulièrement : c'est ta sauvegarde.</p>
+</section>
+
+<!-- Champs communs (zone + fiche), déplacés dans l'écran actif -->
+<template id="champs">
+  <label for="zone">Zone cible</label>
+  <select id="zone">
+    <option value="1">1 · Ancrage</option>
+    <option value="2">2 · Vertige</option>
+    <option value="3">3 · Formulation</option>
+    <option value="4">4 · Arrimage</option>
+  </select>
+  <label for="fiche">Fiche (choisis ou écris)</label>
+  <input type="text" id="fiche" list="fiches" autocomplete="off" autocapitalize="off" spellcheck="false" value="physique_term_act4_centrifugeuse">
+</template>
+<datalist id="fiches"><option value="physique_term_act4_centrifugeuse"></option></datalist>
+
+<!-- ÉCRAN 2 : écrire -->
+<section id="ecran-ecrire" hidden>
+  <h2>Écrire une idée</h2>
+  <div class="champs-ici"></div>
+  <label for="texte">Ton idée</label>
+  <textarea id="texte" placeholder="Écris librement…"></textarea>
+  <button class="gros" id="b-envoyer-texte" type="button">📤 Envoyer cette note (WhatsApp, mail…)</button>
+  <button class="gros sec" id="b-sauver-texte" type="button">✅ Enregistrer cette idée sur le téléphone</button>
+  <button class="gros sec" id="b-annuler-texte" type="button">Annuler</button>
+</section>
+
+<!-- ÉCRAN 3 : enregistrer -->
+<section id="ecran-audio" hidden>
+  <h2>Enregistrer</h2>
+  <div class="champs-ici"></div>
+  <div class="chrono" id="chrono" aria-live="off">00:00</div>
+  <button class="gros" id="b-demarrer" type="button">🎤 Démarrer</button>
+  <button class="gros danger" id="b-arreter" type="button" hidden>⏹️ Arrêter</button>
+  <div id="apercu" hidden>
+    <p>Réécoute avant de garder :</p>
+    <audio id="lecteur" controls></audio>
+    <p class="vide" id="infos-audio"></p>
+    <button class="gros" id="b-envoyer-audio" type="button">📤 Envoyer cet audio (WhatsApp, mail…)</button>
+    <button class="gros sec" id="b-garder" type="button">✅ Garder cet audio sur le téléphone</button>
+    <button class="gros danger" id="b-jeter" type="button">🗑️ Refaire</button>
+  </div>
+  <button class="gros sec" id="b-annuler-audio" type="button">Retour</button>
+</section>
+</main>
+<footer>Prototype v0.2 non validé par Sof<br><span id="diag"></span></footer>
+
+<script>
+"use strict";
+/* ============================================================
+   Capture d'idées : prototype v0.1
+   Tout reste sur l'appareil (IndexedDB). Aucun réseau, aucun compte.
+   ============================================================ */
+
+var DUREE_MAX_MS = 2 * 60 * 1000;           // durée maximale d'un enregistrement : 2 minutes
+var VERSION_FORMAT = "0.1";                  // version du format d'échange JSON
+var FICHE_PAR_DEFAUT = "physique_term_act4_centrifugeuse";
+var ZONES = {1: "Ancrage", 2: "Vertige", 3: "Formulation", 4: "Arrimage"};
+
+/* ---------- petits utilitaires ---------- */
+function $(id){ return document.getElementById(id); }
+
+function uuid(){
+  // crypto.randomUUID n'existe qu'en contexte sécurisé : on prévoit un repli.
+  if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  var b = new Uint8Array(16); crypto.getRandomValues(b);
+  b[6] = (b[6] & 0x0f) | 0x40; b[8] = (b[8] & 0x3f) | 0x80;
+  var h = Array.prototype.map.call(b, function(x){ return ("0" + x.toString(16)).slice(-2); }).join("");
+  return h.slice(0,8)+"-"+h.slice(8,12)+"-"+h.slice(12,16)+"-"+h.slice(16,20)+"-"+h.slice(20);
+}
+
+function dire(message, genre){            // message d'état visible (et lu par les lecteurs d'écran)
+  var e = $("etat"); e.textContent = message || ""; e.className = genre || "";
+}
+
+function dateLisible(iso){
+  var d = new Date(iso);
+  return isNaN(d) ? iso : d.toLocaleString("fr-FR", {dateStyle: "short", timeStyle: "short"});
+}
+
+function ko(octets){ return Math.max(1, Math.round(octets / 1024)) + " Ko"; }
+
+/* ---------- stockage : IndexedDB (le localStorage est trop petit pour l'audio) ---------- */
+var base = null;            // la connexion, une fois ouverte
+var stockageOk = true;      // passe à false si IndexedDB est indisponible (navigation privée…)
+
+function ouvrirBase(){
+  return new Promise(function(resolve, reject){
+    if (!window.indexedDB) { reject(new Error("IndexedDB indisponible")); return; }
+    var req = indexedDB.open("capture_idees", 1);
+    req.onupgradeneeded = function(){ req.result.createObjectStore("captures", {keyPath: "id"}); };
+    req.onsuccess = function(){ resolve(req.result); };
+    req.onerror = function(){ reject(req.error || new Error("ouverture impossible")); };
+  });
+}
+
+function transaction(mode, action){
+  return new Promise(function(resolve, reject){
+    var tx = base.transaction("captures", mode);
+    var out = action(tx.objectStore("captures"));
+    tx.oncomplete = function(){ resolve(out && out.result); };
+    tx.onerror = tx.onabort = function(){ reject(tx.error || new Error("transaction échouée")); };
+  });
+}
+
+function ajouter(capture){ return transaction("readwrite", function(s){ return s.put(capture); }); }
+function supprimer(id){ return transaction("readwrite", function(s){ return s.delete(id); }); }
+function toutLire(){
+  return transaction("readonly", function(s){ return s.getAll(); }).then(function(l){
+    return (l || []).sort(function(a, b){ return a.date_creation < b.date_creation ? 1 : -1; });
+  });
+}
+
+/* ---------- navigation entre écrans ---------- */
+var derniereFiche = FICHE_PAR_DEFAUT, derniereZone = "1";
+
+/* Les champs « zone » et « fiche » ont des id uniques : ils n'existent que dans l'écran affiché. */
+function montrer(nom){
+  ["accueil", "ecrire", "audio"].forEach(function(e){
+    $("ecran-" + e).hidden = (e !== nom);
+    var ou = $("ecran-" + e).querySelector(".champs-ici");
+    if (ou) ou.textContent = "";                                   // on retire les champs des écrans cachés
+  });
+  var ici = $("ecran-" + nom).querySelector(".champs-ici");
+  if (ici) {
+    ici.appendChild($("champs").content.cloneNode(true));
+    $("fiche").value = derniereFiche;
+    $("zone").value = derniereZone;
+  }
+  dire("");
+  window.scrollTo(0, 0);
+}
+
+function lireChamps(){
+  var zone = parseInt($("zone").value, 10);
+  var fiche = $("fiche").value.trim() || FICHE_PAR_DEFAUT;
+  derniereFiche = fiche; derniereZone = String(zone);
+  return {zone_cible: zone, fiche_id: fiche};
+}
+
+/* ---------- affichage de la liste ---------- */
+function afficherListe(){
+  return toutLire().then(function(liste){
+    var ul = $("liste"); ul.textContent = "";
+    $("liste-vide").hidden = liste.length > 0;
+    $("compte").textContent = liste.length ? "(" + liste.length + ")" : "";
+    var vus = {}; vus[FICHE_PAR_DEFAUT] = true;
+    liste.forEach(function(c){ vus[c.fiche_id] = true; });
+    var dl = $("fiches"); dl.textContent = "";
+    Object.keys(vus).forEach(function(f){ var o = document.createElement("option"); o.value = f; dl.appendChild(o); });
+    liste.slice(0, 8).forEach(function(c){
+      var li = document.createElement("li"); li.className = "carte";
+      var tete = document.createElement("div"); tete.className = "tete";
+      var titre = document.createElement("strong");
+      titre.textContent = (c.type === "audio" ? "🎤 Audio" : "✍️ Texte");
+      var meta = document.createElement("span"); meta.className = "meta";
+      meta.textContent = dateLisible(c.date_creation) + " · zone " + c.zone_cible + " " + (ZONES[c.zone_cible] || "");
+      tete.appendChild(titre); tete.appendChild(meta); li.appendChild(tete);
+      var m2 = document.createElement("div"); m2.className = "meta"; m2.textContent = "Fiche : " + c.fiche_id; li.appendChild(m2);
+      if (c.type === "texte") {
+        var ex = document.createElement("div"); ex.className = "extrait";
+        ex.textContent = c.contenu.length > 120 ? c.contenu.slice(0, 120) + "…" : c.contenu; li.appendChild(ex);
+      } else {
+        var au = document.createElement("audio"); au.controls = true; au.preload = "none"; au.src = c.contenu; li.appendChild(au);
+        var ex2 = document.createElement("div"); ex2.className = "meta"; ex2.textContent = "Audio · " + ko(c.contenu.length * 0.75); li.appendChild(ex2);
+      }
+      var sup = document.createElement("button"); sup.type = "button"; sup.className = "petit danger"; sup.textContent = "Supprimer";
+      sup.addEventListener("click", function(){
+        if (!confirm("Supprimer cette capture ? (Elle ne sera plus dans tes exports.)")) return;
+        supprimer(c.id).then(afficherListe).then(function(){ dire("Capture supprimée.", "ok"); });
+      });
+      li.appendChild(sup);
+      ul.appendChild(li);
+    });
+  });
+}
+
+/* ---------- capture texte ---------- */
+function sauverTexte(){
+  var t = $("texte").value.trim();
+  if (!t) { dire("Écris quelque chose avant d'enregistrer.", "ko"); return; }
+  var ch = lireChamps();
+  var c = {id: uuid(), date_creation: new Date().toISOString(), type: "texte", contenu: t, zone_cible: ch.zone_cible, fiche_id: ch.fiche_id};
+  ajouter(c).then(function(){
+    $("texte").value = ""; montrer("accueil");
+    return afficherListe();
+  }).then(function(){ dire("Idée enregistrée sur ce téléphone.", "ok"); })
+    .catch(function(e){ dire("Impossible d'enregistrer ici (stockage indisponible : " + (e && e.name || "erreur") + "). Copie ton texte avant de quitter.", "ko"); });
+}
+
+/* ---------- capture audio ---------- */
+var flux = null, enregistreur = null, morceaux = [], blobAudio = null, urlApercu = null;
+var debut = 0, minuteur = null, butoir = null, mimeChoisi = "", arretAuto = false;
+
+function typeMimePris(){
+  // Chrome/Android : webm+opus ; Safari/iPhone : mp4+aac. On interroge le navigateur, dans cet ordre.
+  var candidats = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4;codecs=mp4a.40.2", "audio/mp4", "audio/ogg;codecs=opus", "audio/aac"];
+  if (!window.MediaRecorder || !MediaRecorder.isTypeSupported) return "";
+  for (var i = 0; i < candidats.length; i++) { if (MediaRecorder.isTypeSupported(candidats[i])) return candidats[i]; }
+  return "";   // aucun candidat : le navigateur choisira son format par défaut
+}
+
+function formaterDuree(ms){
+  var s = Math.floor(ms / 1000), m = Math.floor(s / 60); s = s % 60;
+  return ("0" + m).slice(-2) + ":" + ("0" + s).slice(-2);
+}
+
+function libererApercu(){
+  if (urlApercu) { URL.revokeObjectURL(urlApercu); urlApercu = null; }
+  blobAudio = null; $("apercu").hidden = true; $("lecteur").removeAttribute("src");
+}
+
+function arreterFlux(){
+  if (flux) { flux.getTracks().forEach(function(t){ t.stop(); }); flux = null; }
+  clearInterval(minuteur); clearTimeout(butoir); minuteur = butoir = null;
+}
+
+function demarrerEnregistrement(){
+  libererApercu(); dire("");
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    dire("Le micro n'est pas disponible ici : la page doit être ouverte en HTTPS (ou en local). Voir le README.", "ko"); return;
+  }
+  if (!window.MediaRecorder) { dire("Ce navigateur ne sait pas enregistrer l'audio (MediaRecorder absent).", "ko"); return; }
+  var veille = setTimeout(function(){
+    dire("Toujours en attente du micro… Si le téléphone n'a montré aucune demande d'autorisation, regarde le diagnostic en bas de la page (« contexte sécurisé »).", "");
+  }, 6000);
+  navigator.mediaDevices.getUserMedia({audio: true}).then(function(s){
+    clearTimeout(veille);
+    flux = s; morceaux = [];
+    mimeChoisi = typeMimePris();
+    enregistreur = mimeChoisi ? new MediaRecorder(s, {mimeType: mimeChoisi}) : new MediaRecorder(s);
+    enregistreur.ondataavailable = function(ev){ if (ev.data && ev.data.size) morceaux.push(ev.data); };
+    enregistreur.onstop = function(){
+      var duree = Date.now() - debut;
+      var type = enregistreur.mimeType || mimeChoisi || "audio/webm";
+      blobAudio = new Blob(morceaux, {type: type});
+      arreterFlux();
+      $("b-arreter").hidden = true; $("b-demarrer").hidden = false;
+      if (!blobAudio.size) { dire("Aucun son enregistré. Réessaie.", "ko"); return; }
+      urlApercu = URL.createObjectURL(blobAudio);
+      $("lecteur").src = urlApercu; $("apercu").hidden = false;
+      $("infos-audio").textContent = "Durée " + formaterDuree(duree) + " · " + ko(blobAudio.size) + " · format " + type;
+      dire((arretAuto ? "Durée maximale de 2 minutes atteinte : enregistrement arrêté. " : "Enregistrement terminé. ") + "Écoute-le puis garde-le ou refais-le.", "ok");
+      arretAuto = false;
+    };
+    enregistreur.start();
+    debut = Date.now();
+    $("b-demarrer").hidden = true; $("b-arreter").hidden = false;
+    $("chrono").innerHTML = ""; var p = document.createElement("span"); p.className = "pastille"; p.setAttribute("aria-hidden", "true");
+    $("chrono").appendChild(p); $("chrono").appendChild(document.createTextNode("00:00"));
+    minuteur = setInterval(function(){ $("chrono").lastChild.nodeValue = formaterDuree(Date.now() - debut); }, 250);
+    arretAuto = false;
+    butoir = setTimeout(function(){ arretAuto = true; arreter(); }, DUREE_MAX_MS);
+  }).catch(function(err){
+    clearTimeout(veille);
+    arreterFlux();
+    var n = err && err.name;
+    if (n === "NotAllowedError" || n === "SecurityError") dire("Micro refusé. Appuie à nouveau sur « Démarrer » et choisis « Autoriser ». Si rien ne s'affiche, il y a deux réglages : 1) dans Chrome, menu ⋮, Paramètres, Paramètres des sites, Micro ; 2) dans le téléphone, Paramètres, Applications, Chrome, Autorisations, Micro : « Autoriser ».", "ko");
+    else if (n === "NotFoundError") dire("Aucun micro trouvé sur cet appareil.", "ko");
+    else dire("Impossible de démarrer le micro (" + (n || "erreur") + ").", "ko");
+  });
+}
+
+function arreter(){
+  if (enregistreur && enregistreur.state === "recording") enregistreur.stop();
+}
+
+function garderAudio(){
+  if (!blobAudio) return;
+  var ch = lireChamps(), lecteur = new FileReader();
+  lecteur.onload = function(){
+    var c = {id: uuid(), date_creation: new Date().toISOString(), type: "audio", contenu: lecteur.result, zone_cible: ch.zone_cible, fiche_id: ch.fiche_id};
+    ajouter(c).then(function(){
+      libererApercu(); montrer("accueil"); return afficherListe();
+    }).then(function(){ dire("Audio enregistré sur ce téléphone.", "ok"); })
+      .catch(function(){ dire("Impossible de garder l'audio ici (stockage indisponible ou plein).", "ko"); });
+  };
+  lecteur.onerror = function(){ dire("Lecture de l'audio impossible.", "ko"); };
+  lecteur.readAsDataURL(blobAudio);   // contenu = data URL base64, comme prévu par le format d'échange
+}
+
+/* ---------- export ---------- */
+function exporter(){
+  toutLire().then(function(liste){
+    var jour = new Date(); var aaaa = jour.getFullYear(), mm = ("0" + (jour.getMonth() + 1)).slice(-2), jj = ("0" + jour.getDate()).slice(-2);
+    var doc = {version: VERSION_FORMAT, derniere_maj: new Date().toISOString(), captures: liste};
+    var blob = new Blob([JSON.stringify(doc)], {type: "application/json"});
+    var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "captures_" + aaaa + "-" + mm + "-" + jj + ".json";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
+    dire(liste.length + " capture(s) exportée(s) dans " + a.download + ".", "ok");
+  }).catch(function(){ dire("Export impossible.", "ko"); });
+}
+
+/* ---------- envoi direct (feuille de partage du téléphone : WhatsApp, mail, Drive…) ----------
+   Chrome (Android) n'autorise pas le partage de fichiers .json (liste officielle des types autorisés : .txt, .csv,
+   .pdf, images, audio…). On partage donc le même contenu dans un fichier .txt : le PC sait l'importer. */
+function nomDuJour(ext){
+  var jour = new Date(); return "captures_" + jour.getFullYear() + "-" + ("0" + (jour.getMonth() + 1)).slice(-2) + "-" + ("0" + jour.getDate()).slice(-2) + ext;
+}
+
+function partager(){
+  dire("Préparation de l'envoi…", "");
+  toutLire().then(function(liste){
+    if (!liste.length) { dire("Aucune capture à envoyer pour l'instant.", "ko"); return; }
+    var nom = nomDuJour(".txt");
+    var doc = {version: VERSION_FORMAT, derniere_maj: new Date().toISOString(), captures: liste};
+    var fichier = new File([JSON.stringify(doc)], nom, {type: "text/plain"});
+    if (!navigator.share || !navigator.canShare || !navigator.canShare({files: [fichier]})) {
+      dire("L'envoi direct n'est pas possible dans ce navigateur. Utilise « Exporter » : le fichier arrive dans les Téléchargements, tu l'envoies ensuite depuis WhatsApp (pièce jointe, Documents).", "ko"); return;
+    }
+    return navigator.share({files: [fichier], title: nom}).then(function(){
+      dire(liste.length + " capture(s) transmise(s) à l'application choisie.", "ok");
+    }, function(err){
+      if (err && err.name === "AbortError") { dire("Envoi annulé.", ""); return; }
+      dire("Envoi impossible (" + (err && err.name || "erreur") + "). Utilise « Exporter », puis envoie le fichier depuis WhatsApp.", "ko");
+    });
+  }).catch(function(){ dire("Envoi impossible : les captures n'ont pas pu être lues.", "ko"); });
+}
+
+/* ---------- envoi immédiat, sans passer par le stockage (marche même si le stockage du téléphone est bloqué) ---------- */
+function ouvrirWhatsApp(msg){ window.location.href = "https://wa.me/?text=" + encodeURIComponent(msg); }
+
+function envoyerTexte(){
+  var t = $("texte").value.trim();
+  if (!t) { dire("Écris quelque chose avant d'envoyer.", "ko"); return; }
+  var ch = lireChamps();
+  var msg = "Zone " + ch.zone_cible + " " + (ZONES[ch.zone_cible] || "") + " · fiche " + ch.fiche_id + "\n" + t;
+  if (navigator.share) {
+    navigator.share({text: msg}).then(function(){ dire("Note transmise à l'application choisie.", "ok"); }, function(err){
+      if (err && err.name === "AbortError") { dire("Envoi annulé.", ""); return; }
+      dire("Envoi direct impossible : ouverture de WhatsApp…", ""); ouvrirWhatsApp(msg);
+    });
+  } else { dire("Ouverture de WhatsApp…", ""); ouvrirWhatsApp(msg); }
+}
+
+function envoyerAudio(){
+  if (!blobAudio) return;
+  var type = (blobAudio.type || "audio/webm").split(";")[0];
+  var ext = type.indexOf("mp4") >= 0 ? "m4a" : (type.indexOf("ogg") >= 0 ? "ogg" : "webm");
+  var f = new File([blobAudio], "idee_audio_" + Date.now() + "." + ext, {type: type});
+  if (!navigator.share || !navigator.canShare || !navigator.canShare({files: [f]})) { dire("Ce navigateur ne sait pas envoyer l'audio directement. Garde-le sur le téléphone, puis utilise « Exporter ».", "ko"); return; }
+  navigator.share({files: [f], title: f.name}).then(function(){ dire("Audio transmis à l'application choisie.", "ok"); }, function(err){
+    if (err && err.name === "AbortError") { dire("Envoi annulé.", ""); return; }
+    dire("Envoi de l'audio impossible ici. Garde-le sur le téléphone, puis utilise « Exporter ».", "ko");
+  });
+}
+
+/* ---------- branchements ---------- */
+$("b-envoyer-texte").addEventListener("click", envoyerTexte);
+$("b-envoyer-audio").addEventListener("click", envoyerAudio);
+$("b-ecrire").addEventListener("click", function(){ montrer("ecrire"); $("texte").focus(); });
+$("b-enregistrer").addEventListener("click", function(){ montrer("audio"); $("chrono").textContent = "00:00"; });
+$("b-sauver-texte").addEventListener("click", sauverTexte);
+$("b-annuler-texte").addEventListener("click", function(){ montrer("accueil"); });
+$("b-demarrer").addEventListener("click", demarrerEnregistrement);
+$("b-arreter").addEventListener("click", arreter);
+$("b-garder").addEventListener("click", garderAudio);
+$("b-jeter").addEventListener("click", function(){ libererApercu(); dire(""); $("chrono").textContent = "00:00"; });
+$("b-annuler-audio").addEventListener("click", function(){
+  if (enregistreur && enregistreur.state === "recording") { enregistreur.onstop = null; enregistreur.stop(); }
+  arreterFlux(); libererApercu(); $("b-arreter").hidden = true; $("b-demarrer").hidden = false;
+  montrer("accueil");
+});
+$("b-exporter").addEventListener("click", exporter);
+$("b-partager").addEventListener("click", partager);
+if (navigator.share && window.File) $("b-partager").hidden = false;
+
+/* ---------- démarrage ---------- */
+/* Diagnostic visible en bas de page (pour comprendre un problème sur un téléphone). */
+var etatPermMicro = "inconnue";
+function diagnostic(stockage){
+  var micro = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  var partageFichier = false;
+  try { partageFichier = !!(navigator.canShare && window.File && navigator.canShare({files: [new File(["x"], "t.txt", {type: "text/plain"})]})); } catch (e) {}
+  $("diag").textContent = "Diagnostic : adresse " + location.protocol + " · contexte sécurisé : " + (window.isSecureContext ? "oui" : "non") +
+    " · stockage : " + stockage + " · micro disponible : " + (micro ? "oui" : "non") + " · autorisation du micro : " + etatPermMicro +
+    " · partage : " + (navigator.share ? "oui" : "non") + " · partage de fichier : " + (partageFichier ? "oui" : "non");
+}
+diagnostic("test en cours");
+try {
+  if (navigator.permissions && navigator.permissions.query) {
+    navigator.permissions.query({name: "microphone"}).then(function(r){
+      var traduire = {granted: "accordée", denied: "refusée", prompt: "à demander"};
+      var maj = function(){ etatPermMicro = traduire[r.state] || r.state; diagnostic($("diag").getAttribute("data-stockage") || "…"); };
+      maj(); r.onchange = maj;
+    }, function(){});
+  }
+} catch (e) {}
+(function(){
+  var telephone = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  var commeFichier = location.protocol === "file:" || location.protocol === "content:";
+  if (telephone && (commeFichier || !window.isSecureContext)) {
+    var b = $("bandeau"); b.hidden = false;
+    b.textContent = "Cette page est ouverte comme un simple fichier sur le téléphone. Dans ce cas, le micro et l'envoi direct marchent souvent mal. Le plus fiable : l'ouvrir par son adresse internet (commençant par https://) dans Chrome.";
+  }
+})();
+
+ouvrirBase().then(function(b){ base = b; $("diag").setAttribute("data-stockage", "oui"); diagnostic("oui"); return afficherListe(); }).catch(function(e){
+  $("diag").setAttribute("data-stockage", "NON (" + (e && e.name || "erreur") + ")");
+  diagnostic("NON (" + (e && e.name || "erreur") + ")");
+  stockageOk = false;
+  dire("Stockage indisponible dans ce navigateur (navigation privée ?). Les captures ne seront pas conservées.", "ko");
+  ["b-ecrire", "b-enregistrer", "b-exporter"].forEach(function(i){ $(i).disabled = true; });
+});
+
+/* Mode hors ligne : seulement si la page est servie en HTTPS ou localhost (sinon on ne fait rien). */
+if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")) {
+  navigator.serviceWorker.register("sw.js").catch(function(){ /* page non installable : sans conséquence */ });
+}
+</script>
+</body>
+</html>
